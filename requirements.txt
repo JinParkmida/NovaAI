@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pyyaml
+openai>=1.0
+edge-tts
+requests

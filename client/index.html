@@ -56,35 +56,86 @@
 
     #app {
       display: grid;
-      grid-template-columns: 1fr 420px;
+      grid-template-columns: 420px 1fr;
       height: 100vh;
-      transition: grid-template-columns 0.25s ease;
     }
 
-    /* ── Avatar pane ──────────────────────────────────────────────────────── */
+    /* ── Avatar pane (right) ──────────────────────────────────────────────── */
     #avatar-pane {
       position: relative;
-      background: radial-gradient(ellipse at 50% 80%, #1a1040 0%, #07071a 70%);
+      background: var(--bg);
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 20px;
       overflow: hidden;
     }
 
-    #avatar-pane::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(circle at 30% 20%, rgba(108,99,255,0.06) 0%, transparent 50%),
-        radial-gradient(circle at 70% 80%, rgba(0,212,255,0.04) 0%, transparent 50%);
-      pointer-events: none;
+    /* Webcam-style container */
+    #vrm-container {
+      position: relative;
+      height: calc(100vh - 40px);
+      max-width: 100%;
+      aspect-ratio: 3 / 4;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(108,99,255,0.25);
+      box-shadow:
+        0 0 0 1px rgba(108,99,255,0.08),
+        0 8px 40px rgba(0,0,0,0.7),
+        0 0 60px rgba(108,99,255,0.08);
+      background: radial-gradient(ellipse at 50% 85%, #1a1040 0%, #07071a 70%);
     }
 
     #vrm-canvas {
       display: block;
       width: 100% !important;
       height: 100% !important;
+    }
+
+    /* Webcam overlays */
+    .cam-label {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.65);
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 3px 12px;
+      pointer-events: none;
+      letter-spacing: 0.07em;
+      white-space: nowrap;
+    }
+
+    .cam-badge {
+      position: absolute;
+      bottom: 14px;
+      left: 14px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #22c55e;
+      letter-spacing: 0.1em;
+      pointer-events: none;
+    }
+
+    .cam-badge .live-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s ease-in-out infinite;
     }
 
     #vrm-placeholder {
@@ -133,12 +184,12 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     #vrm-loading p { color: var(--text-muted); font-size: 0.85rem; }
 
-    /* ── Chat pane ────────────────────────────────────────────────────────── */
+    /* ── Chat pane (left) ────────────────────────────────────────────────── */
     #chat-pane {
       display: flex;
       flex-direction: column;
       background: var(--bg2);
-      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
       height: 100vh;
     }
 
@@ -721,9 +772,10 @@
     }
 
     @media (max-width: 768px) {
-      #app { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; }
-      #avatar-pane { height: 40vh; }
-      #chat-pane { height: 60vh; border-left: none; border-top: 1px solid var(--border); }
+      #app { grid-template-columns: 1fr; grid-template-rows: 1fr 45vh; }
+      #chat-pane { height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      #avatar-pane { padding: 12px; height: 45vh; }
+      #vrm-container { height: 100%; aspect-ratio: auto; border-radius: 12px; }
       #dev-panel { width: 100%; }
     }
   </style>
@@ -732,32 +784,7 @@
 
 <div id="app">
 
-  <!-- Avatar pane -->
-  <div id="avatar-pane">
-    <canvas id="vrm-canvas"></canvas>
-
-    <div id="vrm-loading">
-      <div class="spinner"></div>
-      <p>Loading Nova…</p>
-    </div>
-
-    <div id="vrm-placeholder" style="display:none">
-      <div class="icon">🎴</div>
-      <h2>No avatar yet</h2>
-      <p>
-        Drop a VRM model into <code>character_files/</code>
-        and set <code>character.vrm_model</code> in <code>character_config.yaml</code>.<br/><br/>
-        Get one free from
-        <a href="https://hub.vroid.com" target="_blank" style="color:var(--accent2)">VRoid Hub</a>
-        or create your own with
-        <a href="https://vroid.com/en/studio" target="_blank" style="color:var(--accent2)">VRoid Studio</a>.
-        <br/><br/>
-        Nova will appear here automatically once the file is in place — just refresh.
-      </p>
-    </div>
-  </div>
-
-  <!-- Chat pane -->
+  <!-- Chat pane (left) -->
   <div id="chat-pane">
 
     <div id="chat-header">
@@ -797,6 +824,35 @@
       <button id="send-btn" title="Send">➤</button>
     </div>
 
+  </div>
+
+  <!-- Avatar pane (right, webcam style) -->
+  <div id="avatar-pane">
+    <div id="vrm-container">
+      <canvas id="vrm-canvas"></canvas>
+
+      <div id="vrm-loading">
+        <div class="spinner"></div>
+        <p>Loading Nova…</p>
+      </div>
+
+      <div id="vrm-placeholder" style="display:none">
+        <div class="icon">🎴</div>
+        <h2>No avatar yet</h2>
+        <p>
+          Drop a VRM model into <code>character_files/</code>
+          and set <code>character.vrm_model</code> in <code>character_config.yaml</code>.<br/><br/>
+          Get one free from
+          <a href="https://hub.vroid.com" target="_blank" style="color:var(--accent2)">VRoid Hub</a>
+          or create your own with
+          <a href="https://vroid.com/en/studio" target="_blank" style="color:var(--accent2)">VRoid Studio</a>.
+        </p>
+      </div>
+
+      <!-- Webcam-style overlays -->
+      <div class="cam-label" id="cam-name-label">Nova</div>
+      <div class="cam-badge"><div class="live-dot"></div>LIVE</div>
+    </div>
   </div>
 </div>
 
@@ -1010,7 +1066,7 @@ function randomBlinkInterval() { return 3 + Math.random() * 4; }
 // ── Three.js setup ────────────────────────────────────────────────────────────
 
 const canvas   = document.getElementById('vrm-canvas');
-const pane     = document.getElementById('avatar-pane');
+const pane     = document.getElementById('vrm-container');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -1120,12 +1176,12 @@ function applyIdlePose(vrm) {
   const rl = h.getNormalizedBoneNode('rightLowerArm');
   const ls = h.getNormalizedBoneNode('leftShoulder');
   const rs = h.getNormalizedBoneNode('rightShoulder');
-  if (lu) lu.rotation.z = deg(-75);
-  if (ru) ru.rotation.z = deg(75);
-  if (ll) ll.rotation.z = deg(-5);
-  if (rl) rl.rotation.z = deg(5);
-  if (ls) ls.rotation.z = deg(-5);
-  if (rs) rs.rotation.z = deg(5);
+  if (lu) lu.rotation.z = deg(75);   // +Z brings leftUpperArm down
+  if (ru) ru.rotation.z = deg(-75);  // -Z brings rightUpperArm down
+  if (ll) ll.rotation.z = deg(5);
+  if (rl) rl.rotation.z = deg(-5);
+  if (ls) ls.rotation.z = deg(5);
+  if (rs) rs.rotation.z = deg(-5);
 }
 
 // ── VRM loading ───────────────────────────────────────────────────────────────
@@ -1170,7 +1226,8 @@ async function init() {
     const config = await res.json();
 
     characterName = config.character_name || 'Nova';
-    document.getElementById('header-name').textContent = characterName;
+    document.getElementById('header-name').textContent  = characterName;
+    document.getElementById('cam-name-label').textContent = characterName;
     document.title = characterName;
 
     if (config.background_url) {
