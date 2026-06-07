@@ -1,0 +1,39 @@
+llm:
+  provider: ollama
+  base_url: http://localhost:11434/v1
+  api_key: ollama
+  model: llama3.1:8b
+  temperature: 0.85
+  max_tokens: 1024
+
+tts:
+  primary: edge-tts   # sovits | edge-tts | piper | none
+  fallback: piper
+
+sovits_config:
+  url: http://127.0.0.1:9880/tts
+  text_lang: en
+  prompt_lang: en
+  ref_audio_path: ./character_files/main_sample.wav
+  prompt_text: ""
+
+piper_config:
+  model: en_US-lessac-medium
+  speaker: 0
+
+memory:
+  history_file: ./data/chat_history.json
+  max_history_messages: 40
+
+character:
+  name: Nova
+  preset: default
+  vrm_model: Yoon.vrm        # filename inside character_files/
+
+presets:
+  default:
+    system_prompt: |
+      You are Nova, a helpful and witty AI companion.
+      You are warm but sharp — genuine, curious, and caring.
+      Keep your answers concise and conversational. Use natural language.
+      You may use the occasional emoji to express yourself, but don't overdo it.

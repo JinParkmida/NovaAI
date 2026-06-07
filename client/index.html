@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/",
+      "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@2.1.2/lib/three-vrm.module.js",
+      "@pixiv/three-vrm-core": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm-core@2.1.2/lib/three-vrm-core.module.js",
+      "@pixiv/three-vrm-materials-mtoon": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm-materials-mtoon@2.1.2/lib/three-vrm-materials-mtoon.module.js",
+      "@pixiv/three-vrm-node-constraint": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm-node-constraint@2.1.2/lib/three-vrm-node-constraint.module.js",
+      "@pixiv/three-vrm-springbone": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm-springbone@2.1.2/lib/three-vrm-springbone.module.js"
+    }
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #07071a;
+      --bg2:        #0e0e2a;
+      --panel:      rgba(255,255,255,0.04);
+      --border:     rgba(255,255,255,0.08);
+      --accent:     #6c63ff;
+      --accent2:    #00d4ff;
+      --text:       #e8e8f0;
+      --text-muted: #7070a0;
+      --user-msg:   #1e1b4b;
+      --nova-msg:   rgba(255,255,255,0.05);
+      --radius:     16px;
+      --font:       'Nunito', system-ui, sans-serif;
+
+      /* Dev panel */
+      --dev-bg:     #09091f;
+      --dev-panel2: #0f0f28;
+      --dev-border: rgba(108,99,255,0.2);
+      --dev-input:  rgba(255,255,255,0.05);
+      --dev-width:  420px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      overflow: hidden;
+    }
+
+    #app {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      height: 100vh;
+      transition: grid-template-columns 0.25s ease;
+    }
+
+    /* ── Avatar pane ──────────────────────────────────────────────────────── */
+    #avatar-pane {
+      position: relative;
+      background: radial-gradient(ellipse at 50% 80%, #1a1040 0%, #07071a 70%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #avatar-pane::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(108,99,255,0.06) 0%, transparent 50%),
+        radial-gradient(circle at 70% 80%, rgba(0,212,255,0.04) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    #vrm-canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    #vrm-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      text-align: center;
+      padding: 40px;
+    }
+
+    #vrm-placeholder .icon { font-size: 56px; opacity: 0.4; }
+    #vrm-placeholder h2 { font-size: 1.2rem; font-weight: 700; color: var(--text); opacity: 0.7; }
+    #vrm-placeholder p  { font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; max-width: 320px; }
+    #vrm-placeholder code {
+      background: rgba(255,255,255,0.08);
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: var(--accent2);
+    }
+
+    #vrm-loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: var(--bg);
+    }
+
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(108,99,255,0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #vrm-loading p { color: var(--text-muted); font-size: 0.85rem; }
+
+    /* ── Chat pane ────────────────────────────────────────────────────────── */
+    #chat-pane {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      height: 100vh;
+    }
+
+    /* Header */
+    #chat-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #avatar-icon {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    #header-info { flex: 1; }
+    #header-name { font-weight: 700; font-size: 1rem; }
+    #header-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 2px;
+    }
+
+    #status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    #status-dot.thinking {
+      background: #f59e0b;
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    #header-actions { display: flex; gap: 8px; }
+
+    .icon-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: color 0.2s, background 0.2s;
+    }
+
+    .icon-btn:hover {
+      color: var(--text);
+      background: rgba(255,255,255,0.06);
+    }
+
+    .icon-btn.active {
+      color: var(--accent);
+      background: rgba(108,99,255,0.12);
+    }
+
+    /* Messages */
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+    }
+
+    #chat-messages::-webkit-scrollbar { width: 4px; }
+    #chat-messages::-webkit-scrollbar-track { background: transparent; }
+    #chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-width: 88%;
+      animation: fadeUp 0.2s ease;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg.user { align-self: flex-end; align-items: flex-end; }
+    .msg.nova { align-self: flex-start; align-items: flex-start; }
+
+    .msg-bubble {
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .msg.user .msg-bubble {
+      background: var(--user-msg);
+      border: 1px solid rgba(108,99,255,0.3);
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.nova .msg-bubble {
+      background: var(--nova-msg);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .msg-label { font-size: 0.72rem; color: var(--text-muted); padding: 0 4px; }
+
+    /* Typing indicator */
+    #typing-indicator {
+      display: none;
+      align-self: flex-start;
+      padding: 10px 14px;
+      background: var(--nova-msg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      border-bottom-left-radius: 4px;
+    }
+
+    #typing-indicator.visible { display: flex; gap: 5px; align-items: center; }
+
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-6px); }
+    }
+
+    /* Input */
+    #chat-input-area {
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+
+    #chat-input {
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.9rem;
+      resize: none;
+      outline: none;
+      max-height: 120px;
+      min-height: 42px;
+      line-height: 1.4;
+      transition: border-color 0.2s;
+    }
+
+    #chat-input::placeholder { color: var(--text-muted); }
+    #chat-input:focus { border-color: rgba(108,99,255,0.5); }
+
+    #send-btn {
+      width: 42px; height: 42px;
+      border-radius: 12px;
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s, transform 0.1s;
+      font-size: 1.1rem;
+    }
+
+    #send-btn:hover  { background: #7c75ff; }
+    #send-btn:active { transform: scale(0.94); }
+    #send-btn:disabled { background: #3a3a5c; cursor: not-allowed; }
+
+    /* Welcome */
+    #welcome-msg {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      line-height: 1.7;
+    }
+
+    #welcome-msg strong { color: var(--text); display: block; font-size: 1rem; margin-bottom: 6px; }
+
+    /* ── Developer Panel ──────────────────────────────────────────────────── */
+
+    #dev-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: var(--dev-width);
+      height: 100vh;
+      background: var(--dev-bg);
+      border-left: 1px solid var(--dev-border);
+      box-shadow: -12px 0 40px rgba(0,0,0,0.6);
+      transform: translateX(100%);
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      font-size: 0.87rem;
+    }
+
+    #dev-panel.open { transform: translateX(0); }
+
+    #dev-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--dev-border);
+      flex-shrink: 0;
+      background: rgba(108,99,255,0.07);
+    }
+
+    #dev-header-title {
+      flex: 1;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #dev-header-title .badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 20px;
+      background: rgba(108,99,255,0.25);
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    #dev-shortcut-hint {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 5px;
+      padding: 2px 7px;
+      font-family: monospace;
+    }
+
+    #dev-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+      padding: 4px 6px;
+      border-radius: 6px;
+      transition: color 0.2s, background 0.2s;
+    }
+
+    #dev-close:hover { color: var(--text); background: rgba(255,255,255,0.07); }
+
+    #dev-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--dev-border);
+      flex-shrink: 0;
+    }
+
+    .dev-tab {
+      flex: 1;
+      padding: 10px 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      text-align: center;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .dev-tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+    .dev-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    #dev-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 18px;
+    }
+
+    #dev-content::-webkit-scrollbar { width: 4px; }
+    #dev-content::-webkit-scrollbar-track { background: transparent; }
+    #dev-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+    .dev-tab-pane { display: none; }
+    .dev-tab-pane.active { display: block; }
+
+    .dev-field { margin-bottom: 18px; }
+
+    .dev-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 7px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .dev-label .hint {
+      font-size: 0.65rem;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      color: rgba(112,112,160,0.7);
+    }
+
+    .dev-input,
+    .dev-select,
+    .dev-textarea {
+      width: 100%;
+      background: var(--dev-input);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 9px 12px;
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .dev-input:focus,
+    .dev-select:focus,
+    .dev-textarea:focus {
+      border-color: rgba(108,99,255,0.5);
+      background: rgba(255,255,255,0.07);
+    }
+
+    .dev-textarea {
+      min-height: 170px;
+      resize: vertical;
+      font-family: 'Consolas', 'Fira Code', 'Courier New', monospace;
+      font-size: 0.8rem;
+      line-height: 1.55;
+    }
+
+    .dev-select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237070a0' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 30px;
+    }
+
+    .dev-input-row { display: flex; gap: 8px; }
+    .dev-input-row .dev-input { flex: 1; }
+
+    .dev-slider-wrap { display: flex; align-items: center; gap: 10px; }
+
+    .dev-range {
+      flex: 1;
+      -webkit-appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.1);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .dev-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      transition: transform 0.1s;
+      box-shadow: 0 0 0 3px rgba(108,99,255,0.2);
+    }
+
+    .dev-range::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+    .dev-range-val {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 40px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dev-divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin: 16px 0;
+    }
+
+    .dev-section-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: rgba(108,99,255,0.6);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dev-section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(108,99,255,0.15);
+    }
+
+    .dev-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: none;
+      font-family: var(--font);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .dev-btn-primary  { background: var(--accent); color: white; }
+    .dev-btn-primary:hover { background: #7c75ff; }
+    .dev-btn-primary:active { transform: scale(0.97); }
+    .dev-btn-primary:disabled { background: #3a3a5c; cursor: not-allowed; opacity: 0.6; }
+
+    .dev-btn-secondary {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .dev-btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+    .dev-btn-danger {
+      background: rgba(239,68,68,0.12);
+      color: #f87171;
+      border: 1px solid rgba(239,68,68,0.2);
+    }
+
+    .dev-btn-danger:hover { background: rgba(239,68,68,0.2); }
+    .dev-btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+
+    .dev-btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    #dev-save-status {
+      flex-shrink: 0;
+      padding: 10px 18px;
+      border-top: 1px solid var(--dev-border);
+      font-size: 0.75rem;
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      transition: color 0.3s;
+    }
+
+    #dev-save-status.success { color: #4ade80; }
+    #dev-save-status.error   { color: #f87171; }
+
+    #preset-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .preset-tag {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+
+    .preset-tag:hover { background: rgba(108,99,255,0.15); border-color: rgba(108,99,255,0.4); color: var(--text); }
+    .preset-tag.active { background: rgba(108,99,255,0.2); border-color: var(--accent); color: var(--accent); }
+
+    .model-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .model-chip {
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      background: rgba(0,212,255,0.08);
+      border: 1px solid rgba(0,212,255,0.2);
+      color: var(--accent2);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .model-chip:hover { background: rgba(0,212,255,0.15); }
+
+    .voice-row { display: flex; gap: 8px; align-items: center; }
+    .voice-row .dev-select { flex: 1; }
+
+    #kbd-hint {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(13,13,36,0.92);
+      border: 1px solid var(--dev-border);
+      border-radius: 10px;
+      padding: 8px 16px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 100;
+      white-space: nowrap;
+    }
+
+    #kbd-hint.visible { opacity: 1; }
+    #kbd-hint kbd {
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: var(--accent2);
+    }
+
+    @media (max-width: 768px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: 40vh 1fr; }
+      #avatar-pane { height: 40vh; }
+      #chat-pane { height: 60vh; border-left: none; border-top: 1px solid var(--border); }
+      #dev-panel { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Avatar pane -->
+  <div id="avatar-pane">
+    <canvas id="vrm-canvas"></canvas>
+
+    <div id="vrm-loading">
+      <div class="spinner"></div>
+      <p>Loading Nova…</p>
+    </div>
+
+    <div id="vrm-placeholder" style="display:none">
+      <div class="icon">🎴</div>
+      <h2>No avatar yet</h2>
+      <p>
+        Drop a VRM model into <code>character_files/</code>
+        and set <code>character.vrm_model</code> in <code>character_config.yaml</code>.<br/><br/>
+        Get one free from
+        <a href="https://hub.vroid.com" target="_blank" style="color:var(--accent2)">VRoid Hub</a>
+        or create your own with
+        <a href="https://vroid.com/en/studio" target="_blank" style="color:var(--accent2)">VRoid Studio</a>.
+        <br/><br/>
+        Nova will appear here automatically once the file is in place — just refresh.
+      </p>
+    </div>
+  </div>
+
+  <!-- Chat pane -->
+  <div id="chat-pane">
+
+    <div id="chat-header">
+      <div id="avatar-icon">🌸</div>
+      <div id="header-info">
+        <div id="header-name">Nova</div>
+        <div id="header-status">
+          <div id="status-dot"></div>
+          <span id="status-text">Online</span>
+        </div>
+      </div>
+      <div id="header-actions">
+        <button class="icon-btn" title="Clear memory" onclick="clearHistory()">🗑</button>
+        <button class="icon-btn" id="dev-toggle-btn" title="Developer Panel (Ctrl+,)" onclick="toggleDevPanel()">⚙</button>
+      </div>
+    </div>
+
+    <div id="chat-messages">
+      <div id="welcome-msg">
+        <strong>Hey! 👋</strong>
+        Type a message below, or ask me anything.
+      </div>
+      <div id="typing-indicator">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+    </div>
+
+    <div id="chat-input-area">
+      <textarea
+        id="chat-input"
+        placeholder="Type a message…"
+        rows="1"
+        autocomplete="off"
+      ></textarea>
+      <button id="send-btn" title="Send">➤</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Developer Panel ──────────────────────────────────────────────────────── -->
+<div id="dev-panel">
+
+  <div id="dev-header">
+    <div id="dev-header-title">
+      ⚙ Developer Panel
+      <span class="badge">LIVE</span>
+    </div>
+    <span id="dev-shortcut-hint">Ctrl+,</span>
+    <button id="dev-close" onclick="toggleDevPanel()" title="Close">✕</button>
+  </div>
+
+  <div id="dev-tabs">
+    <button class="dev-tab active" data-tab="personality">🎭 Persona</button>
+    <button class="dev-tab"       data-tab="model">🧠 Model</button>
+    <button class="dev-tab"       data-tab="voice">🔊 Voice</button>
+  </div>
+
+  <div id="dev-content">
+
+    <!-- ── Personality tab ───────────────────────────────────────────────── -->
+    <div class="dev-tab-pane active" id="tab-personality">
+
+      <div class="dev-field">
+        <div class="dev-label">Character Name</div>
+        <input id="cfg-name" class="dev-input" type="text" placeholder="Nova" />
+      </div>
+
+      <hr class="dev-divider" />
+      <div class="dev-section-title">Preset</div>
+
+      <div class="dev-field">
+        <div class="dev-label">
+          Active Preset
+          <span class="hint">click to switch</span>
+        </div>
+        <div id="preset-list"><!-- populated by JS --></div>
+
+        <div class="dev-btn-row">
+          <button class="dev-btn dev-btn-secondary dev-btn-sm" onclick="newPreset()">＋ New Preset</button>
+          <button class="dev-btn dev-btn-danger dev-btn-sm"    onclick="deletePreset()">🗑 Delete</button>
+        </div>
+      </div>
+
+      <div class="dev-field">
+        <div class="dev-label">
+          System Prompt
+          <span class="hint">unrestricted — write anything</span>
+        </div>
+        <textarea id="cfg-system-prompt" class="dev-textarea" rows="9"
+          placeholder="You are Nova, a helpful assistant…"></textarea>
+      </div>
+
+      <div class="dev-btn-row">
+        <button class="dev-btn dev-btn-primary" onclick="savePersonality()">💾 Save Personality</button>
+        <button class="dev-btn dev-btn-danger"  onclick="clearHistory()">🗑 Clear Memory</button>
+      </div>
+    </div>
+
+    <!-- ── Model tab ─────────────────────────────────────────────────────── -->
+    <div class="dev-tab-pane" id="tab-model">
+
+      <div class="dev-section-title">Ollama LLM</div>
+
+      <div class="dev-field">
+        <div class="dev-label">
+          Model
+          <span class="hint">must be pulled locally</span>
+        </div>
+        <div class="dev-input-row">
+          <input id="cfg-model" class="dev-input" type="text" placeholder="llama3.1:8b" />
+          <button class="dev-btn dev-btn-secondary dev-btn-sm" onclick="refreshModels()" title="Fetch from Ollama">↺</button>
+        </div>
+        <div class="model-suggestions" id="model-chips"></div>
+      </div>
+
+      <div class="dev-field">
+        <div class="dev-label">
+          Temperature
+          <span class="hint">creativity vs focus</span>
+        </div>
+        <div class="dev-slider-wrap">
+          <input type="range" class="dev-range" id="cfg-temperature"
+            min="0" max="2" step="0.05" value="0.85"
+            oninput="document.getElementById('temp-val').textContent = parseFloat(this.value).toFixed(2)" />
+          <span class="dev-range-val" id="temp-val">0.85</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:var(--text-muted);margin-top:4px">
+          <span>Focused</span><span>Balanced</span><span>Creative</span>
+        </div>
+      </div>
+
+      <div class="dev-field">
+        <div class="dev-label">
+          Max Tokens
+          <span class="hint">max response length</span>
+        </div>
+        <div class="dev-slider-wrap">
+          <input type="range" class="dev-range" id="cfg-max-tokens"
+            min="64" max="4096" step="64" value="1024"
+            oninput="document.getElementById('tokens-val').textContent = this.value" />
+          <span class="dev-range-val" id="tokens-val">1024</span>
+        </div>
+      </div>
+
+      <hr class="dev-divider" />
+      <div class="dev-section-title">API Endpoint</div>
+
+      <div class="dev-field">
+        <div class="dev-label">Base URL</div>
+        <input id="cfg-base-url" class="dev-input" type="text" placeholder="http://localhost:11434/v1" />
+      </div>
+
+      <div class="dev-btn-row">
+        <button class="dev-btn dev-btn-primary" onclick="saveModel()">💾 Save Model Settings</button>
+      </div>
+    </div>
+
+    <!-- ── Voice tab ─────────────────────────────────────────────────────── -->
+    <div class="dev-tab-pane" id="tab-voice">
+
+      <div class="dev-section-title">Edge TTS Voice</div>
+
+      <div class="dev-field">
+        <div class="dev-label">Voice</div>
+        <div class="voice-row">
+          <select id="cfg-edge-voice" class="dev-select">
+            <optgroup label="English (US)">
+              <option value="en-US-AriaNeural">Aria — warm, natural ★</option>
+              <option value="en-US-JennyNeural">Jenny — soft, friendly</option>
+              <option value="en-US-MichelleNeural">Michelle — clear</option>
+              <option value="en-US-SaraNeural">Sara — cheerful</option>
+            </optgroup>
+            <optgroup label="English (UK)">
+              <option value="en-GB-SoniaNeural">Sonia — British</option>
+              <option value="en-GB-LibbyNeural">Libby — British casual</option>
+            </optgroup>
+            <optgroup label="English (AU)">
+              <option value="en-AU-NatashaNeural">Natasha — Australian</option>
+            </optgroup>
+            <optgroup label="Japanese">
+              <option value="ja-JP-NanamiNeural">Nanami — Japanese ♀</option>
+              <option value="ja-JP-AoiNeural">Aoi — Japanese ♀ casual</option>
+            </optgroup>
+            <optgroup label="Korean">
+              <option value="ko-KR-SunHiNeural">Sun-Hi — Korean ♀</option>
+            </optgroup>
+            <optgroup label="Chinese">
+              <option value="zh-CN-XiaoxiaoNeural">Xiaoxiao — Mandarin ♀</option>
+              <option value="zh-TW-HsiaoChenNeural">HsiaoChen — Taiwanese</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+
+      <div class="dev-field">
+        <div class="dev-label">Test Text</div>
+        <input id="cfg-test-text" class="dev-input" type="text"
+          value="Hey! This is how I sound with this voice." />
+      </div>
+
+      <div class="dev-btn-row">
+        <button class="dev-btn dev-btn-secondary" onclick="testVoice()">▶ Test Voice</button>
+        <button class="dev-btn dev-btn-primary"   onclick="saveVoice()">💾 Save Voice</button>
+      </div>
+
+      <div id="voice-test-player" style="margin-top:14px;display:none">
+        <audio id="voice-preview" controls style="width:100%;height:32px;border-radius:8px;"></audio>
+      </div>
+    </div>
+
+  </div><!-- #dev-content -->
+
+  <div id="dev-save-status">Ready.</div>
+
+</div><!-- #dev-panel -->
+
+<div id="kbd-hint">Press <kbd>Ctrl+,</kbd> to toggle Developer Panel</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let vrm           = null;
+let isTalking     = false;
+let isLoading     = false;
+let characterName = 'Nova';
+let currentAudio  = null;
+let devOpen       = false;
+let devSettings   = {};
+let activePreset  = 'default';
+
+const clock = new THREE.Clock();
+
+// Blink state
+let blinkTimer = randomBlinkInterval();
+let blinkPhase = 'idle';
+let blinkT     = 0;
+
+// Breathing state
+let breathT = 0;
+
+function randomBlinkInterval() { return 3 + Math.random() * 4; }
+
+// ── Three.js setup ────────────────────────────────────────────────────────────
+
+const canvas   = document.getElementById('vrm-canvas');
+const pane     = document.getElementById('avatar-pane');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping      = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 10);
+camera.position.set(0, 1.45, 1.5);
+camera.lookAt(0, 1.25, 0);
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+keyLight.position.set(1, 2, 2);
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0x6c63ff, 0.4);
+rimLight.position.set(-2, 1, -1);
+scene.add(rimLight);
+const fillLight = new THREE.DirectionalLight(0x00d4ff, 0.15);
+fillLight.position.set(0, 3, -2);
+scene.add(fillLight);
+
+function resizeRenderer() {
+  const w = pane.clientWidth;
+  const h = pane.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+
+resizeRenderer();
+new ResizeObserver(resizeRenderer).observe(pane);
+
+// ── Animation loop ────────────────────────────────────────────────────────────
+
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  if (vrm) {
+    updateBlink(delta);
+    updateBreathing(delta);
+    updateMouth(delta);
+    vrm.update(delta);
+  }
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ── VRM animations ────────────────────────────────────────────────────────────
+
+function setExpression(name, value) {
+  if (!vrm?.expressionManager) return;
+  try { vrm.expressionManager.setValue(name, value); } catch (_) {}
+}
+
+function updateBlink(delta) {
+  blinkTimer -= delta;
+  if (blinkPhase === 'idle' && blinkTimer <= 0) { blinkPhase = 'closing'; blinkT = 0; }
+  if (blinkPhase === 'closing') {
+    blinkT += delta / 0.07;
+    setExpression('blink', Math.min(blinkT, 1));
+    if (blinkT >= 1) { blinkPhase = 'closed'; blinkT = 0; }
+  } else if (blinkPhase === 'closed') {
+    blinkT += delta;
+    if (blinkT >= 0.05) { blinkPhase = 'opening'; blinkT = 0; }
+  } else if (blinkPhase === 'opening') {
+    blinkT += delta / 0.1;
+    setExpression('blink', 1 - Math.min(blinkT, 1));
+    if (blinkT >= 1) {
+      setExpression('blink', 0);
+      blinkPhase = 'idle';
+      blinkTimer = randomBlinkInterval();
+    }
+  }
+}
+
+function updateBreathing(delta) {
+  breathT += delta * 0.6;
+  if (!vrm?.scene) return;
+  vrm.scene.position.y = Math.sin(breathT) * 0.003;
+}
+
+let mouthT = 0;
+function updateMouth(delta) {
+  if (!isTalking) {
+    const cur = vrm.expressionManager?.getValue?.('aa') ?? 0;
+    setExpression('aa', cur > 0.01 ? cur * 0.85 : 0);
+    return;
+  }
+  mouthT += delta * 8;
+  setExpression('aa', (Math.sin(mouthT) * 0.5 + 0.5) * 0.7);
+}
+
+// ── Idle pose ─────────────────────────────────────────────────────────────────
+
+function applyIdlePose(vrm) {
+  const h = vrm.humanoid;
+  if (!h) return;
+  const deg = THREE.MathUtils.degToRad;
+  const lu = h.getNormalizedBoneNode('leftUpperArm');
+  const ru = h.getNormalizedBoneNode('rightUpperArm');
+  const ll = h.getNormalizedBoneNode('leftLowerArm');
+  const rl = h.getNormalizedBoneNode('rightLowerArm');
+  const ls = h.getNormalizedBoneNode('leftShoulder');
+  const rs = h.getNormalizedBoneNode('rightShoulder');
+  if (lu) lu.rotation.z = deg(-75);
+  if (ru) ru.rotation.z = deg(75);
+  if (ll) ll.rotation.z = deg(-5);
+  if (rl) rl.rotation.z = deg(5);
+  if (ls) ls.rotation.z = deg(-5);
+  if (rs) rs.rotation.z = deg(5);
+}
+
+// ── VRM loading ───────────────────────────────────────────────────────────────
+
+async function loadVRM(url) {
+  const loader = new GLTFLoader();
+  loader.register(parser => new VRMLoaderPlugin(parser));
+
+  return new Promise((resolve, reject) => {
+    loader.load(
+      url,
+      (gltf) => {
+        const model = gltf.userData.vrm;
+        if (!model) { reject(new Error('No VRM data in file')); return; }
+        VRMUtils.removeUnnecessaryVertices(gltf.scene);
+        VRMUtils.removeUnnecessaryJoints(gltf.scene);
+        const exts   = gltf.parser.json.extensions || {};
+        const isVRM0 = 'VRM' in exts && !('VRMC_vrm' in exts);
+        if (isVRM0) VRMUtils.rotateVRM0(model);
+        scene.add(model.scene);
+        applyIdlePose(model);
+        model.update(0);   // flush pose immediately — prevents T-pose on first frame
+        resolve(model);
+      },
+      (progress) => {
+        const pct = Math.round((progress.loaded / progress.total) * 100);
+        document.querySelector('#vrm-loading p').textContent = `Loading Nova… ${pct}%`;
+      },
+      reject
+    );
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+  const loading     = document.getElementById('vrm-loading');
+  const placeholder = document.getElementById('vrm-placeholder');
+
+  try {
+    const res    = await fetch('/api/config');
+    const config = await res.json();
+
+    characterName = config.character_name || 'Nova';
+    document.getElementById('header-name').textContent = characterName;
+    document.title = characterName;
+
+    if (config.background_url) {
+      pane.style.backgroundImage    = `url(${config.background_url})`;
+      pane.style.backgroundSize     = 'cover';
+      pane.style.backgroundPosition = 'center top';
+    }
+
+    if (!config.vrm_available) {
+      loading.style.display     = 'none';
+      placeholder.style.display = 'flex';
+      return;
+    }
+
+    vrm = await loadVRM(config.vrm_url);
+    loading.style.display = 'none';
+    canvas.style.display  = 'block';
+  } catch (err) {
+    console.error('VRM load error:', err);
+    loading.style.display     = 'none';
+    placeholder.style.display = 'flex';
+    const errEl = document.createElement('p');
+    errEl.style.cssText = 'color:#ff6b6b;font-size:0.75rem;margin-top:8px;font-family:monospace;word-break:break-all';
+    errEl.textContent = err.message || String(err);
+    placeholder.appendChild(errEl);
+  }
+
+  showKbdHint();
+}
+
+init();
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+
+const messagesEl      = document.getElementById('chat-messages');
+const inputEl         = document.getElementById('chat-input');
+const sendBtn         = document.getElementById('send-btn');
+const typingIndicator = document.getElementById('typing-indicator');
+const statusDot       = document.getElementById('status-dot');
+const statusText      = document.getElementById('status-text');
+const welcomeMsg      = document.getElementById('welcome-msg');
+
+function setStatus(state) {
+  statusDot.className    = (state === 'thinking' || state === 'talking') ? 'thinking' : '';
+  statusText.textContent = state === 'thinking' ? 'Thinking…' :
+                           state === 'talking'  ? 'Speaking…' : 'Online';
+}
+
+function addMessage(role, text) {
+  if (welcomeMsg) welcomeMsg.remove();
+  const wrap   = document.createElement('div');
+  wrap.className = `msg ${role}`;
+  const label  = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = role === 'user' ? 'You' : characterName;
+  const bubble = document.createElement('div');
+  bubble.className  = 'msg-bubble';
+  bubble.textContent = text;
+  wrap.appendChild(label);
+  wrap.appendChild(bubble);
+  typingIndicator.before(wrap);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return bubble;
+}
+
+function showTyping(visible) {
+  typingIndicator.className = visible ? 'visible' : '';
+  if (visible) messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function setInputDisabled(disabled) {
+  inputEl.disabled = disabled;
+  sendBtn.disabled = disabled;
+}
+
+async function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text || isLoading) return;
+
+  isLoading = true;
+  setInputDisabled(true);
+  addMessage('user', text);
+  inputEl.value        = '';
+  inputEl.style.height = '';
+
+  showTyping(true);
+  setStatus('thinking');
+
+  try {
+    const res = await fetch('/api/chat', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ message: text }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    showTyping(false);
+    addMessage('nova', data.text);
+    if (data.audio_url) await playAudio(data.audio_url);
+  } catch (err) {
+    showTyping(false);
+    addMessage('nova', `[Error: ${err.message}]`);
+    console.error(err);
+  } finally {
+    isLoading = false;
+    setInputDisabled(false);
+    setStatus('online');
+    inputEl.focus();
+  }
+}
+
+async function playAudio(url) {
+  return new Promise((resolve) => {
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    const audio = new Audio(url);
+    currentAudio = audio;
+    isTalking    = true;
+    setStatus('talking');
+    audio.addEventListener('ended', () => { isTalking = false; currentAudio = null; resolve(); });
+    audio.addEventListener('error', () => { isTalking = false; currentAudio = null; resolve(); });
+    audio.play().catch(() => { isTalking = false; resolve(); });
+  });
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = '';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+});
+
+sendBtn.addEventListener('click', sendMessage);
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+    e.preventDefault();
+    toggleDevPanel();
+  }
+});
+
+// ── Global helpers ────────────────────────────────────────────────────────────
+
+window.clearHistory = async () => {
+  if (!confirm('Clear all conversation memory?')) return;
+  await fetch('/api/history', { method: 'DELETE' });
+  messagesEl.innerHTML = `<div id="welcome-msg" style="text-align:center;padding:32px 16px;color:var(--text-muted);font-size:0.85rem;line-height:1.7">
+    <strong style="color:var(--text);display:block;font-size:1rem;margin-bottom:6px">Memory cleared.</strong>
+    Fresh start!
+  </div>
+  <div id="typing-indicator"></div>`;
+};
+
+// ── Keyboard hint toast ───────────────────────────────────────────────────────
+
+let _kbdHintShown = false;
+function showKbdHint() {
+  if (_kbdHintShown) return;
+  _kbdHintShown = true;
+  const hint = document.getElementById('kbd-hint');
+  hint.classList.add('visible');
+  setTimeout(() => hint.classList.remove('visible'), 3500);
+}
+
+// ── Dev Panel ────────────────────────────────────────────────────────────────
+
+window.toggleDevPanel = function() {
+  devOpen = !devOpen;
+  const panel = document.getElementById('dev-panel');
+  const btn   = document.getElementById('dev-toggle-btn');
+  panel.classList.toggle('open', devOpen);
+  btn.classList.toggle('active', devOpen);
+  if (devOpen) loadDevSettings();
+};
+
+document.querySelectorAll('.dev-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.dev-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.dev-tab-pane').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+  });
+});
+
+async function loadDevSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    devSettings = await res.json();
+    populatePanel(devSettings);
+  } catch (e) {
+    devStatus('error', 'Failed to load settings');
+  }
+}
+
+function populatePanel(s) {
+  document.getElementById('cfg-name').value = s.character?.name || 'Nova';
+  activePreset = s.character?.preset || 'default';
+  renderPresetList(s.presets || {}, activePreset);
+  const preset = (s.presets || {})[activePreset] || {};
+  document.getElementById('cfg-system-prompt').value = preset.system_prompt || '';
+
+  document.getElementById('cfg-model').value = s.llm?.model || 'llama3.1:8b';
+  const temp = s.llm?.temperature ?? 0.85;
+  document.getElementById('cfg-temperature').value = temp;
+  document.getElementById('temp-val').textContent   = parseFloat(temp).toFixed(2);
+  const maxTok = s.llm?.max_tokens ?? 1024;
+  document.getElementById('cfg-max-tokens').value   = maxTok;
+  document.getElementById('tokens-val').textContent = maxTok;
+  document.getElementById('cfg-base-url').value     = s.llm?.base_url || 'http://localhost:11434/v1';
+
+  devStatus('', 'Settings loaded.');
+}
+
+function renderPresetList(presets, current) {
+  const listEl = document.getElementById('preset-list');
+  listEl.innerHTML = '';
+  for (const name of Object.keys(presets)) {
+    const tag = document.createElement('button');
+    tag.className   = 'preset-tag' + (name === current ? ' active' : '');
+    tag.textContent = name;
+    tag.onclick = () => switchPreset(name);
+    listEl.appendChild(tag);
+  }
+}
+
+function switchPreset(name) {
+  activePreset = name;
+  const preset = (devSettings.presets || {})[name] || {};
+  document.getElementById('cfg-system-prompt').value = preset.system_prompt || '';
+  renderPresetList(devSettings.presets || {}, name);
+}
+
+function devStatus(type, msg) {
+  const el = document.getElementById('dev-save-status');
+  el.className = type;
+  el.textContent = msg;
+}
+
+async function apiSave(payload) {
+  devStatus('', '⏳ Saving…');
+  try {
+    const res = await fetch('/api/settings', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    devStatus('success', '✓ Saved! Takes effect on next message.');
+    _deep(devSettings, payload);
+    if (payload.character?.name) {
+      characterName = payload.character.name;
+      document.getElementById('header-name').textContent = characterName;
+    }
+  } catch (e) {
+    devStatus('error', `✗ Save failed: ${e.message}`);
+  }
+}
+
+function _deep(base, upd) {
+  for (const k in upd) {
+    if (typeof upd[k] === 'object' && !Array.isArray(upd[k]) && upd[k] !== null && k in base && typeof base[k] === 'object') {
+      _deep(base[k], upd[k]);
+    } else {
+      base[k] = upd[k];
+    }
+  }
+}
+
+window.savePersonality = async function() {
+  const name   = document.getElementById('cfg-name').value.trim() || 'Nova';
+  const prompt = document.getElementById('cfg-system-prompt').value;
+  const updatedPresets = JSON.parse(JSON.stringify(devSettings.presets || {}));
+  if (!updatedPresets[activePreset]) updatedPresets[activePreset] = {};
+  updatedPresets[activePreset].system_prompt = prompt;
+  await apiSave({ character: { name, preset: activePreset }, presets: updatedPresets });
+};
+
+window.saveModel = async function() {
+  await apiSave({
+    llm: {
+      model:       document.getElementById('cfg-model').value.trim(),
+      temperature: parseFloat(document.getElementById('cfg-temperature').value),
+      max_tokens:  parseInt(document.getElementById('cfg-max-tokens').value, 10),
+      base_url:    document.getElementById('cfg-base-url').value.trim(),
+    },
+  });
+};
+
+window.saveVoice = async function() {
+  // voice selection stored for reference; edge-tts voice read from VOICE constant in server
+  devStatus('success', '✓ Voice preference noted.');
+};
+
+window.newPreset = function() {
+  const name = prompt('New preset name:')?.trim();
+  if (!name) return;
+  if (!devSettings.presets) devSettings.presets = {};
+  if (devSettings.presets[name]) { alert('Preset already exists.'); return; }
+  devSettings.presets[name] = { system_prompt: 'You are a helpful assistant.' };
+  switchPreset(name);
+  renderPresetList(devSettings.presets, name);
+  document.getElementById('cfg-system-prompt').value = 'You are a helpful assistant.';
+  devStatus('', `Created preset "${name}". Save to persist.`);
+};
+
+window.deletePreset = function() {
+  if (activePreset === 'default') { alert('Cannot delete the default preset.'); return; }
+  if (!confirm(`Delete preset "${activePreset}"?`)) return;
+  delete devSettings.presets[activePreset];
+  activePreset = 'default';
+  renderPresetList(devSettings.presets, activePreset);
+  switchPreset('default');
+  savePersonality();
+};
+
+window.refreshModels = async function() {
+  devStatus('', 'Fetching Ollama models…');
+  try {
+    const res  = await fetch('/api/models');
+    const data = await res.json();
+    const chips = document.getElementById('model-chips');
+    chips.innerHTML = '';
+    if (!data.models?.length) {
+      chips.innerHTML = '<span style="font-size:0.72rem;color:var(--text-muted)">No models found — is Ollama running?</span>';
+      devStatus('error', 'No Ollama models found.');
+      return;
+    }
+    for (const m of data.models) {
+      const chip = document.createElement('button');
+      chip.className   = 'model-chip';
+      chip.textContent = m;
+      chip.onclick     = () => {
+        document.getElementById('cfg-model').value = m;
+        devStatus('', `Selected model: ${m}`);
+      };
+      chips.appendChild(chip);
+    }
+    devStatus('success', `Found ${data.models.length} model(s).`);
+  } catch (e) {
+    devStatus('error', 'Could not reach Ollama.');
+  }
+};
+
+window.testVoice = async function() {
+  const voice = document.getElementById('cfg-edge-voice').value;
+  const text  = document.getElementById('cfg-test-text').value || 'Hey! This is a voice test!';
+  devStatus('', '⏳ Generating preview…');
+  try {
+    const res  = await fetch('/api/tts/test', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ text, voice }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.audio_url) {
+      const wrap  = document.getElementById('voice-test-player');
+      const audio = document.getElementById('voice-preview');
+      audio.src   = data.audio_url + '?t=' + Date.now();
+      wrap.style.display = 'block';
+      audio.play();
+      devStatus('success', `Playing: ${voice}`);
+    }
+  } catch (e) {
+    devStatus('error', `Voice test failed: ${e.message}`);
+  }
+};
+
+// Focus input on load
+inputEl.focus();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,4 @@
+Copy Yoon.vrm (or any .vrm file) into this folder.
+
+The filename must match character.vrm_model in character_config.yaml.
+Default: Yoon.vrm
